@@ -1,6 +1,7 @@
-"""Patch twikit 1.4.0 KeyError bug on user.py:102.
-PyPI 原版直接索引 legacy['entities']['description']['urls']，
-部分用户 profile 缺少该字段会 KeyError。改为 .get() 链。
+"""Patch twikit 1.4.0 KeyError bugs in user.py.
+
+PyPI 原版直接索引 legacy 字段，部分用户 profile 缺字段会 KeyError。
+改为 .get() 链式调用。
 """
 import pathlib
 
@@ -10,10 +11,28 @@ if not p.exists():
     raise SystemExit(0)
 
 t = p.read_text()
-old = "legacy['entities']['description']['urls']"
-new = "legacy.get('entities', {}).get('description', {}).get('urls', [])"
-if old in t:
-    p.write_text(t.replace(old, new))
+
+fixes = [
+    ("legacy['location']", "legacy.get('location', '')"),
+    ("legacy['description']", "legacy.get('description', '')"),
+    ("legacy['entities']['description']['urls']", "legacy.get('entities', {}).get('description', {}).get('urls', [])"),
+    ("legacy['pinned_tweet_ids_str']", "legacy.get('pinned_tweet_ids_str', [])"),
+    ("legacy['verified']", "legacy.get('verified', False)"),
+    ("legacy['possibly_sensitive']", "legacy.get('possibly_sensitive', False)"),
+    ("legacy['can_dm']", "legacy.get('can_dm', False)"),
+    ("legacy['can_media_tag']", "legacy.get('can_media_tag', False)"),
+    ("legacy['want_retweets']", "legacy.get('want_retweets', False)"),
+]
+
+changed = False
+for old, new in fixes:
+    if old in t:
+        t = t.replace(old, new)
+        changed = True
+        print(f"  fixed: {old}")
+
+if changed:
+    p.write_text(t)
     print(f"patched {p}")
 else:
     print("already patched, skip")
