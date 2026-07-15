@@ -1,9 +1,10 @@
 """Patch twikit 1.4.0 KeyError bugs in user.py.
 
 PyPI 原版直接索引 legacy 字段，部分用户 profile 缺字段会 KeyError。
-改为 .get() 链式调用。
+把所有 legacy['xxx'] 改为 .get() 防护。
 """
 import pathlib
+import re
 
 p = pathlib.Path(__file__).parent / ".venv/lib/python3.10/site-packages/twikit/user.py"
 if not p.exists():
@@ -12,27 +13,34 @@ if not p.exists():
 
 t = p.read_text()
 
-fixes = [
-    ("legacy['location']", "legacy.get('location', '')"),
-    ("legacy['description']", "legacy.get('description', '')"),
-    ("legacy['entities']['description']['urls']", "legacy.get('entities', {}).get('description', {}).get('urls', [])"),
-    ("legacy['pinned_tweet_ids_str']", "legacy.get('pinned_tweet_ids_str', [])"),
-    ("legacy['verified']", "legacy.get('verified', False)"),
-    ("legacy['possibly_sensitive']", "legacy.get('possibly_sensitive', False)"),
-    ("legacy['can_dm']", "legacy.get('can_dm', False)"),
-    ("legacy['can_media_tag']", "legacy.get('can_media_tag', False)"),
-    ("legacy['want_retweets']", "legacy.get('want_retweets', False)"),
-]
+# Replace legacy['key'] → legacy.get('key', default)
+# default: '' for str, 0 for int, False for bool, [] for list, {} for dict
+def replacer(m):
+    full = m.group(0)
+    key = m.group(1)
+    # already .get() — skip
+    if '.get(' in full:
+        return full
+    # guess default by type hint
+    line = m.string[m.start():m.start()+120]
+    if ': str' in line or ': list' in line and 'str' in line:
+        default = "''"
+    elif ': bool' in line:
+        default = "False"
+    elif ': int' in line:
+        default = "0"
+    elif ': list' in line:
+        default = "[]"
+    else:
+        default = "None"
+    return f"legacy.get('{key}', {default})"
 
-changed = False
-for old, new in fixes:
-    if old in t:
-        t = t.replace(old, new)
-        changed = True
-        print(f"  fixed: {old}")
+# Match legacy['xxx'] but not legacy.get(...)
+pattern = r"legacy\['([^']+)'\]"
+new_t = re.sub(pattern, replacer, t)
 
-if changed:
-    p.write_text(t)
+if new_t != t:
+    p.write_text(new_t)
     print(f"patched {p}")
 else:
     print("already patched, skip")
