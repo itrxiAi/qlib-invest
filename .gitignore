@@ -5,3 +5,6 @@ __pycache__/
 runs/
 .venv/
 .DS_Store
+news_scan.md
+twitter_scan.md
+patch_twikit.py
