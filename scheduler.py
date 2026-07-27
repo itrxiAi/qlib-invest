@@ -1,8 +1,8 @@
 """
 scheduler.py — 常驻定时任务服务
 
-工作日每小时整点拉 Techmeme 科技头条 + Twitter。
-每小时增量归档到 runs/news_raw/YYYY-MM-DD_source.md，按条目去重。
+每小时整点拉 Techmeme + Twitter，增量归档 + LLM digest（不推送）。
+每8小时（06/14/22 CST）运行深度分析，推送 TG。
 部署：nohup .venv/bin/python scheduler.py >> runs/scheduler.log 2>&1 &
 """
 
@@ -220,123 +220,25 @@ def pull_all():
 
     try:
         import news_llm_filter
-        result = news_llm_filter.run()
-        if result:
-            push_feishu(result)
+        news_llm_filter.run()
     except Exception as e:
         log.exception(f"LLM 提取失败: {e}")
 
 
-def push_feishu(content):
-    """通过飞书群机器人 webhook 推送新增重要消息。"""
-    import os
-    import requests
-    webhook = os.environ.get("FEISHU_WEBHOOK", "")
-    if not webhook:
-        env_path = ROOT / ".env"
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                if line.startswith("FEISHU_WEBHOOK="):
-                    webhook = line.split("=", 1)[1].strip()
-                    break
-    if not webhook:
-        log.warning("FEISHU_WEBHOOK 未配置，跳过推送")
-        return
 
-    lines = content.splitlines()
-    new_lines = []
-    in_new = False
-    for line in lines:
-        if line.startswith("## 新增重要消息"):
-            in_new = True
-            continue
-        if line.startswith("## ") or line.startswith("---"):
-            in_new = False
-            continue
-        if in_new and line.strip().startswith("- "):
-            new_lines.append(line.strip())
-    if not new_lines:
-        log.info("无新增重要消息，跳过飞书推送")
-        return
-
-    now = datetime.now(CST).strftime("%H:%M")
-    text = f"📊 投研快讯 {now}\n\n" + "\n".join(new_lines)
+def run_deep_analysis():
+    """每8小时运行深度分析，推送 TG。"""
     try:
-        resp = requests.post(
-            webhook,
-            json={"msg_type": "text", "content": {"text": text}},
-            timeout=10,
-        )
-        if resp.status_code == 200 and resp.json().get("code") == 0:
-            log.info(f"飞书推送成功: {len(new_lines)} 条新增")
-        else:
-            log.warning(f"飞书推送失败: {resp.status_code} {resp.text}")
-            if "frequency" in resp.text.lower():
-                import time as _t
-                _t.sleep(10)
-                resp2 = requests.post(webhook, json={"msg_type": "text", "content": {"text": text}}, timeout=10)
-                if resp2.status_code == 200 and resp2.json().get("code") == 0:
-                    log.info(f"飞书推送重试成功: {len(new_lines)} 条新增")
-                else:
-                    log.warning(f"飞书推送重试失败: {resp2.status_code} {resp2.text}")
+        import news_deep_analysis
+        news_deep_analysis.run(hours=8, min_score=4)
     except Exception as e:
-        log.warning(f"飞书推送异常: {e}")
-
-
-def push_serverchan(content):
-    """通过 Server酱 推送到微信。只推送新增重要消息部分。"""
-    import os
-    import requests
-    key = os.environ.get("SERVERCHAN_KEY", "")
-    if not key:
-        # 从 .env 读取
-        env_path = ROOT / ".env"
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                if line.startswith("SERVERCHAN_KEY="):
-                    key = line.split("=", 1)[1].strip()
-                    break
-    if not key:
-        log.warning("SERVERCHAN_KEY 未配置，跳过推送")
-        return
-
-    # 提取新增重要消息部分
-    lines = content.splitlines()
-    new_lines = []
-    in_new = False
-    for line in lines:
-        if line.startswith("## 新增重要消息"):
-            in_new = True
-            continue
-        if line.startswith("## ") or line.startswith("---"):
-            in_new = False
-            continue
-        if in_new and line.strip().startswith("- "):
-            new_lines.append(line.strip())
-    if not new_lines:
-        log.info("无新增重要消息，跳过推送")
-        return
-
-    now = datetime.now(CST).strftime("%H:%M")
-    title = f"投研快讯 {now}（{len(new_lines)}条新增）"
-    body = "\n".join(new_lines)
-    try:
-        resp = requests.post(
-            f"https://sctapi.ftqq.com/{key}.send",
-            data={"title": title, "desp": body},
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            log.info(f"Server酱推送成功: {title}")
-        else:
-            log.warning(f"Server酱推送失败: {resp.status_code} {resp.text}")
-    except Exception as e:
-        log.warning(f"Server酱推送异常: {e}")
+        log.exception(f"深度分析失败: {e}")
 
 
 def main():
     sched = BackgroundScheduler(timezone="Asia/Shanghai")
 
+    # 每小时拉新闻 + 生成 digest（不推送）
     sched.add_job(
         pull_all,
         CronTrigger(minute=0),
@@ -344,8 +246,16 @@ def main():
         misfire_grace_time=600,
     )
 
+    # 每8小时深度分析 + 推送 TG（06:00, 14:00, 22:00 CST）
+    sched.add_job(
+        run_deep_analysis,
+        CronTrigger(hour="6,14,22", minute=0),
+        id="deep_analysis_8h",
+        misfire_grace_time=600,
+    )
+
     sched.start()
-    log.info("调度器已启动，每小时整点拉Techmeme+Twitter。Ctrl-C 退出。")
+    log.info("调度器已启动：每小时拉新闻，每8h(06/14/22)深度分析+TG推送。Ctrl-C 退出。")
 
     try:
         import time
