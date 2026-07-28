@@ -143,16 +143,23 @@ def _parse_entry(line, category, section_time):
     # 去掉前缀 "- "
     content = line[2:].strip()
 
-    # 提取来源和时间
+    # 提取来源和时间：[Source] [Time] text 或 [Source Time] text
     m = re.match(r'\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.+)', content)
     if m:
         source = m.group(1).strip()
         time_str = m.group(2).strip()
         text = m.group(3).strip()
     else:
-        source = "unknown"
-        time_str = section_time.strftime("%H:%M") if section_time else ""
-        text = content
+        m1 = re.match(r'\[([^\]]+)\]\s*(.+)', content)
+        if m1:
+            source = m1.group(1).strip()
+            text = m1.group(2).strip()
+            tm = re.search(r'(\d{2}:\d{2})', source)
+            time_str = tm.group(1) if tm else (section_time.strftime("%H:%M") if section_time else "")
+        else:
+            source = "unknown"
+            time_str = section_time.strftime("%H:%M") if section_time else ""
+            text = content
 
     ts_str = section_time.strftime("%Y-%m-%d %H:%M") if section_time else ""
 
