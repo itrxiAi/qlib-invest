@@ -27,9 +27,9 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent
 load_dotenv(ROOT / ".env")
 
-ZHIPU_API_KEY = os.environ.get("ZHIPU_API_KEY", "")
-ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-MODEL = "glm-4-long"
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
+MODEL = "deepseek-reasoner"
 
 DIGEST_DIR = ROOT / "runs" / "news_digest"
 SUMMARY_FILE = ROOT / "runs" / "news_summary.md"
@@ -208,47 +208,10 @@ def update_summary(result, date_str=None, days=2):
 
 # ─── 调 GLM API ─────────────────────────────────────────────────────
 
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
-FALLBACK_MODEL = "deepseek-reasoner"
 
 
-def call_glm(prompt, system="你是投研新闻编辑助手，所有输出必须使用中文，英文公司名/股票代码保留英文", max_tokens=4000):
-    """调用智谱 GLM API，失败后降级到 deepseek-reasoner。"""
-    if not ZHIPU_API_KEY:
-        raise RuntimeError("ZHIPU_API_KEY 未设置，请检查 .env")
-
-    headers = {
-        "Authorization": f"Bearer {ZHIPU_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
-        ],
-        "max_tokens": max_tokens,
-        "temperature": 0.3,
-    }
-
-    for attempt in range(3):
-        try:
-            resp = requests.post(ZHIPU_URL, headers=headers, json=payload, timeout=180)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-        except Exception as e:
-            if attempt < 2:
-                print(f"    LLM 第{attempt+1}次失败: {e}，重试中...", file=sys.stderr)
-                time.sleep(3)
-            else:
-                print(f"    {MODEL} 3次重试失败，降级到 {FALLBACK_MODEL}", file=sys.stderr)
-                return call_deepseek(prompt, system, max_tokens)
-
-
-def call_deepseek(prompt, system, max_tokens=2000):
-    """调用 DeepSeek API 作为 fallback。"""
+def call_glm(prompt, system="你是投研新闻编辑助手，所有输出必须使用中文，英文公司名/股票代码保留英文", max_tokens=8000):
+    """调用 DeepSeek API。"""
     if not DEEPSEEK_API_KEY:
         raise RuntimeError("DEEPSEEK_API_KEY 未设置，请检查 .env")
 
@@ -257,7 +220,7 @@ def call_deepseek(prompt, system, max_tokens=2000):
         "Content-Type": "application/json",
     }
     payload = {
-        "model": FALLBACK_MODEL,
+        "model": MODEL,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
@@ -274,7 +237,7 @@ def call_deepseek(prompt, system, max_tokens=2000):
             return data["choices"][0]["message"]["content"]
         except Exception as e:
             if attempt < 2:
-                print(f"    DeepSeek 第{attempt+1}次失败: {e}，重试中...", file=sys.stderr)
+                print(f"    LLM 第{attempt+1}次失败: {e}，重试中...", file=sys.stderr)
                 time.sleep(3)
             else:
                 raise

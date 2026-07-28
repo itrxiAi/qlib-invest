@@ -16,47 +16,40 @@ RAW_DIR = ROOT / "runs" / "news_raw"
 
 def backfill_techmeme(days: int):
     import news
+    import scheduler
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 
     print(f"\n拉取 Techmeme（近 {days} 天）…")
     title, groups = news.run("tech", days)
-    total = sum(len(v) for v in groups.values())
-    print(f"共 {total} 条")
-
-    by_day: dict[str, list] = {}
+    flat = []
     for src, items in groups.items():
         for it in items:
-            day = time.strftime("%Y-%m-%d", time.localtime(it["ts"])) if it["ts"] else "unknown"
-            by_day.setdefault(day, []).append((src, it))
+            it.setdefault("extra", src)
+            flat.append(it)
+    print(f"共 {len(flat)} 条")
+    scheduler.merge_daily("techmeme", flat)
 
-    for day, entries in sorted(by_day.items()):
-        out = RAW_DIR / f"{day}_tech.md"
-        lines = [f"# Techmeme 科技头条 — {day}\n", f"共 {len(entries)} 条\n"]
-        for src, it in entries:
-            when = time.strftime("%H:%M", time.localtime(it["ts"])) if it["ts"] else "--"
-            tag = f" `{it['extra']}`" if it.get("extra") else ""
-            t = (it["title"] or "(无标题)").replace("|", "\\|")
-            link = it.get("link", "")
-            lines.append(f"- {when}{tag} [{t}]({link})" if link else f"- {when}{tag} {t}")
-            if it.get("summary"):
-                lines.append(f"  > {it['summary']}")
-        out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        print(f"  {day}: {len(entries)} 条 → {out.name}")
-
-    print(f"Techmeme 回补完成，{len(by_day)} 天")
+    # Also update news_scan.md
+    out_path = ROOT / "news_scan.md"
+    out_path.write_text(news._md(groups, title), encoding="utf-8")
+    print(f"news_scan.md updated")
+    print(f"Techmeme 回补完成")
 
 
 def backfill_twitter(count: int = 200):
     """回补 Twitter 关注时间线（受 API 限制，只能抓最近的）。"""
     import twitter_news
+    import scheduler
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 
     print(f"\n拉取 Twitter 关注时间线（最近 {count} 条）…")
-    items = twitter_news.run(count=count, save=False)
-    print(f"共 {len(items)} 条，按日拆分…")
+    items = twitter_news.fetch_timeline(count=count)
+    print(f"共 {len(items)} 条")
+    scheduler.merge_daily("twitter", items)
 
-    twitter_news.archive_by_day(items)
-    print(f"Twitter 回补完成，{len(set(it['day'] for it in items))} 天")
+    # Also update twitter_scan.md
+    twitter_news.SCAN_FILE.write_text(twitter_news.to_markdown(items), encoding="utf-8")
+    print(f"Twitter 回补完成")
 
 
 if __name__ == "__main__":
