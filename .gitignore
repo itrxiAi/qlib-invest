@@ -8,3 +8,4 @@ runs/
 news_scan.md
 twitter_scan.md
 patch_twikit.py
+scheduler.pid

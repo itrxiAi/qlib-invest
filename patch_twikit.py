@@ -44,3 +44,16 @@ if new_t != t:
     print(f"patched {p}")
 else:
     print("already patched, skip")
+
+# ─── Patch client.py: skip non-tweet entries without 'core' key ───
+client_p = pathlib.Path(__file__).parent / ".venv/lib/python3.10/site-packages/twikit/client.py"
+if client_p.exists():
+    t = client_p.read_text()
+    old = "            tweet_info = find_dict(item, 'result')[0]\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
+    new = "            tweet_info = find_dict(item, 'result')[0]\n            if 'core' not in tweet_info:\n                continue\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
+    if old in t and "if 'core' not in tweet_info:" not in t:
+        t = t.replace(old, new)
+        client_p.write_text(t)
+        print(f"patched {client_p}")
+    else:
+        print("client.py already patched or pattern not found, skip")
