@@ -207,6 +207,7 @@ def pull_all():
         pull_techmeme()
     except Exception as e:
         log.exception(f"Techmeme 拉取失败: {e}")
+        _send_tg_alert(f"Techmeme 拉取失败: {e}")
     for attempt in range(3):
         try:
             pull_twitter()
@@ -217,13 +218,33 @@ def pull_all():
                 time.sleep(30)
             else:
                 log.exception(f"Twitter 拉取失败: {e}")
+                _send_tg_alert(f"Twitter 拉取失败 (3次重试后): {e}")
 
     try:
         import news_llm_filter
         news_llm_filter.run()
     except Exception as e:
         log.exception(f"LLM 提取失败: {e}")
+        _send_tg_alert(f"LLM 提取失败: {e}")
 
+
+
+def _send_tg_alert(msg):
+    """发送 TG 告警通知。"""
+    import os
+    import requests
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not token or not chat_id:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": f"⚠️ invest scheduler 异常\n\n{msg}"},
+            timeout=10,
+        )
+    except Exception:
+        pass
 
 
 def run_deep_analysis():
@@ -233,6 +254,7 @@ def run_deep_analysis():
         news_deep_analysis.run(hours=8, min_score=4)
     except Exception as e:
         log.exception(f"深度分析失败: {e}")
+        _send_tg_alert(f"深度分析失败: {e}")
 
 
 def main():

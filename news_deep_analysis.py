@@ -203,18 +203,27 @@ def call_llm(prompt, system="你是投研新闻深度分析编辑，所有输出
         "temperature": 0.3,
     }
 
-    for attempt in range(3):
-        try:
-            resp = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=180)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-        except Exception as e:
-            if attempt < 2:
-                print(f"    LLM 第{attempt+1}次失败: {e}，重试中...", file=sys.stderr)
-                time.sleep(3)
-            else:
-                raise
+    resp = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=180)
+
+    if resp.status_code != 200:
+        raise RuntimeError(f"DeepSeek API HTTP {resp.status_code}: {resp.text[:500]}")
+
+    data = resp.json()
+
+    if "error" in data:
+        raise RuntimeError(f"DeepSeek API error: {data['error']}")
+
+    if not data.get("choices"):
+        raise RuntimeError(f"DeepSeek API 返回无 choices: {str(data)[:500]}")
+
+    msg = data["choices"][0]["message"]
+    content = msg.get("content", "")
+    finish_reason = data["choices"][0].get("finish_reason", "unknown")
+
+    if not content or not content.strip():
+        raise RuntimeError(f"DeepSeek API 返回空 content (finish_reason={finish_reason}, usage={data.get('usage')})")
+
+    return content
 
 
 # ─── 构建 prompt ────────────────────────────────────────────────────
