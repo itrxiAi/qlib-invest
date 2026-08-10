@@ -251,15 +251,18 @@ def _send_tg_message(text):
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
     if not token or not chat_id:
+        log.warning("TG 配置缺失，跳过推送")
         return
     try:
-        requests.post(
+        resp = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            json={"chat_id": chat_id, "text": text},
             timeout=15,
         )
-    except Exception:
-        pass
+        if resp.status_code != 200:
+            log.error(f"TG 推送失败: {resp.status_code} {resp.text[:200]}")
+    except Exception as e:
+        log.exception(f"TG 推送异常: {e}")
 
 
 def _push_deep_analysis_tg():
