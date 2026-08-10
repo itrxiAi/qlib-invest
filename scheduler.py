@@ -1,13 +1,15 @@
 """
 scheduler.py — 常驻定时任务服务
 
-每小时整点拉 Techmeme + Twitter，增量归档 + LLM digest（不推送）。
-每8小时（06/14/22 CST）运行深度分析，推送 TG。
+每小时整点拉 Techmeme + Twitter，增量归档。
+每12小时调 qwen-code CLI 跑 news-sync skill 深度分析。
 部署：nohup .venv/bin/python scheduler.py >> runs/scheduler.log 2>&1 &
 """
 
 import logging
+import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -220,13 +222,6 @@ def pull_all():
                 log.exception(f"Twitter 拉取失败: {e}")
                 _send_tg_alert(f"Twitter 拉取失败 (3次重试后): {e}")
 
-    try:
-        import news_llm_filter
-        news_llm_filter.run()
-    except Exception as e:
-        log.exception(f"LLM 提取失败: {e}")
-        _send_tg_alert(f"LLM 提取失败: {e}")
-
 
 
 def _send_tg_alert(msg):
@@ -247,20 +242,25 @@ def _send_tg_alert(msg):
         pass
 
 
-def run_deep_analysis():
-    """每8小时运行深度分析，推送 TG。"""
+def run_news_sync():
+    """每12小时调 qwen-code CLI 跑 news-sync skill。"""
+    cli = os.environ.get("QWEN_CLI", "node")
+    cli_args = os.environ.get("QWEN_CLI_ARGS", "").split()
+    model = os.environ.get("QWEN_MODEL", "deepseek-v4-flash")
+    cmd = [cli] + cli_args + ["--prompt", "/news-sync", "--output-format", "stream-json", "-y", "--model", model]
+    log.info(f"启动 news-sync skill: {' '.join(cmd)}")
     try:
-        import news_deep_analysis
-        news_deep_analysis.run(hours=8, min_score=4)
+        subprocess.run(cmd, cwd=str(ROOT), timeout=600, check=True)
+        log.info("news-sync skill 完成")
     except Exception as e:
-        log.exception(f"深度分析失败: {e}")
-        _send_tg_alert(f"深度分析失败: {e}")
+        log.exception(f"news-sync skill 失败: {e}")
+        _send_tg_alert(f"news-sync skill 失败: {e}")
 
 
 def main():
     sched = BackgroundScheduler(timezone="Asia/Shanghai")
 
-    # 每小时拉新闻 + 生成 digest（不推送）
+    # 每小时拉新闻
     sched.add_job(
         pull_all,
         CronTrigger(minute=0),
@@ -268,16 +268,16 @@ def main():
         misfire_grace_time=600,
     )
 
-    # 每8小时深度分析 + 推送 TG（06:00, 14:00, 22:00 CST）
+    # 每12小时深度分析（08:00, 20:00 CST）
     sched.add_job(
-        run_deep_analysis,
-        CronTrigger(hour="6,14,22", minute=0),
-        id="deep_analysis_8h",
+        run_news_sync,
+        CronTrigger(hour="8,20", minute=0),
+        id="news_sync_12h",
         misfire_grace_time=600,
     )
 
     sched.start()
-    log.info("调度器已启动：每小时拉新闻，每8h(06/14/22)深度分析+TG推送。Ctrl-C 退出。")
+    log.info("调度器已启动：每小时拉新闻，每12h(08/20)跑 news-sync skill。Ctrl-C 退出。")
 
     try:
         import time
