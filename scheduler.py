@@ -15,6 +15,9 @@ import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent / ".env")
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
