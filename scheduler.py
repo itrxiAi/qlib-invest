@@ -245,8 +245,47 @@ def _send_tg_alert(msg):
         pass
 
 
+def _send_tg_message(text):
+    """发送 TG 消息。"""
+    import requests
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not token or not chat_id:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            timeout=15,
+        )
+    except Exception:
+        pass
+
+
+def _push_deep_analysis_tg():
+    """推送最新的 news_deep 存档到 TG（仅≥4分条目）。"""
+    deep_dir = ROOT / "runs" / "news_deep"
+    if not deep_dir.exists():
+        return
+    files = sorted(deep_dir.glob("*.md"), reverse=True)
+    if not files:
+        return
+    text = files[0].read_text(encoding="utf-8")
+    # 提取≥4分的条目（★4或★5）
+    import re
+    blocks = re.findall(r'(★{4,5}.*?)(?=\n★|\n## |\Z)', text, re.DOTALL)
+    if not blocks:
+        log.info("无≥4分条目，跳过 TG 推送")
+        return
+    msg = f"📊 深度分析 — {files[0].stem}\n\n" + "\n\n".join(blocks)
+    # TG 消息上限 4096 字符，分段发送
+    for i in range(0, len(msg), 4000):
+        _send_tg_message(msg[i:i+4000])
+    log.info(f"已推送 {len(blocks)} 条≥4分分析到 TG")
+
+
 def run_news_sync():
-    """每12小时调 qwen-code CLI 跑 news-sync skill。"""
+    """每12小时调 qwen-code CLI 跑 news-sync skill，完成后推送 TG。"""
     cli = os.environ.get("QWEN_CLI", "node")
     cli_args = os.environ.get("QWEN_CLI_ARGS", "").split()
     model = os.environ.get("QWEN_MODEL", "deepseek-v4-flash")
@@ -255,6 +294,7 @@ def run_news_sync():
     try:
         subprocess.run(cmd, cwd=str(ROOT), timeout=600, check=True)
         log.info("news-sync skill 完成")
+        _push_deep_analysis_tg()
     except Exception as e:
         log.exception(f"news-sync skill 失败: {e}")
         _send_tg_alert(f"news-sync skill 失败: {e}")
@@ -292,4 +332,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] in ("pull", "sync", "run"):
+        task = sys.argv[1]
+        if task == "pull":
+            pull_all()
+        elif task == "sync":
+            run_news_sync()
+        elif task == "run":
+            pull_all()
+            run_news_sync()
+    else:
+        main()
