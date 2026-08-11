@@ -54,13 +54,24 @@ def pull_techmeme():
     merge_daily("techmeme", flat)
 
 
+TWITTER_BLOCKED_KEYWORDS = [
+    "习劳民", "王毅的贵人", "Arunachal Pradesh",
+]
+
 def pull_twitter():
     log.info("开始拉取 Twitter 关注时间线")
     import twitter_news
     items = twitter_news.fetch_timeline(count=100)
-    twitter_news.SCAN_FILE.write_text(twitter_news.to_markdown(items), encoding="utf-8")
-    log.info(f"Twitter 完成，共 {len(items)} 条 → {twitter_news.SCAN_FILE}")
-    merge_daily("twitter", items)
+    filtered = []
+    for it in items:
+        text = it.get("text", "")
+        if any(kw in text for kw in TWITTER_BLOCKED_KEYWORDS):
+            log.info(f"Twitter 过滤敏感内容: {text[:60]}")
+            continue
+        filtered.append(it)
+    twitter_news.SCAN_FILE.write_text(twitter_news.to_markdown(filtered), encoding="utf-8")
+    log.info(f"Twitter 完成，共 {len(filtered)} 条（过滤 {len(items) - len(filtered)} 条）→ {twitter_news.SCAN_FILE}")
+    merge_daily("twitter", filtered)
 
 
 def _parse_existing(path, source):
@@ -291,13 +302,29 @@ def run_news_sync():
     """每12小时调 qwen-code CLI 跑 news-sync skill，完成后推送 TG。"""
     cli = os.environ.get("QWEN_CLI", "node")
     cli_args = os.environ.get("QWEN_CLI_ARGS", "").split()
-    model = os.environ.get("QWEN_MODEL", "deepseek-v4-flash")
+    model = os.environ.get("QWEN_MODEL", "deepseek-chat")
     cmd = [cli] + cli_args + ["--prompt", "/news-sync", "--output-format", "stream-json", "-y", "--model", model]
     log.info(f"启动 news-sync skill: {' '.join(cmd)}")
     try:
-        subprocess.run(cmd, cwd=str(ROOT), timeout=600, check=True)
+        proc = subprocess.run(cmd, cwd=str(ROOT), timeout=600, check=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stderr = proc.stderr or ""
+        stdout = proc.stdout or ""
+        if stderr:
+            for line in stderr.strip().splitlines():
+                log.info(f"[skill] {line}")
+        if "API Error" in stdout or "API Error" in stderr or "inappropriate content" in stdout or "inappropriate content" in stderr:
+            log.error("news-sync skill API 错误，跳过推送")
+            _send_tg_alert(f"news-sync skill API 错误（内容审核拦截）")
+            return
         log.info("news-sync skill 完成")
         _push_deep_analysis_tg()
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr or ""
+        log.error(f"news-sync skill 失败: returncode={e.returncode}")
+        for line in stderr.strip().splitlines():
+            log.error(f"[skill stderr] {line}")
+        _send_tg_alert(f"news-sync skill 失败 (code={e.returncode}):\n{stderr[:800]}")
     except Exception as e:
         log.exception(f"news-sync skill 失败: {e}")
         _send_tg_alert(f"news-sync skill 失败: {e}")
