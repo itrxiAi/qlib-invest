@@ -277,7 +277,7 @@ def _send_tg_message(text):
 
 
 def _push_deep_analysis_tg():
-    """推送最新的 news_deep 存档到 TG（仅≥4分条目）。"""
+    """推送最新的 news_deep 存档到 TG（≥3分条目）。"""
     deep_dir = ROOT / "runs" / "news_deep"
     if not deep_dir.exists():
         return
@@ -285,17 +285,17 @@ def _push_deep_analysis_tg():
     if not files:
         return
     text = files[0].read_text(encoding="utf-8")
-    # 提取≥4分的条目（★4或★5）
+    # 提取≥3分的条目（★3/★4/★5）
     import re
-    blocks = re.findall(r'(★{4,5}.*?)(?=\n★|\n## |\Z)', text, re.DOTALL)
+    blocks = re.findall(r'(★{3,5}.*?)(?=\n★|\n## |\Z)', text, re.DOTALL)
     if not blocks:
-        log.info("无≥4分条目，跳过 TG 推送")
+        log.info("无≥3分条目，跳过 TG 推送")
         return
     msg = f"📊 深度分析 — {files[0].stem}\n\n" + "\n\n".join(blocks)
     # TG 消息上限 4096 字符，分段发送
     for i in range(0, len(msg), 4000):
         _send_tg_message(msg[i:i+4000])
-    log.info(f"已推送 {len(blocks)} 条≥4分分析到 TG")
+    log.info(f"已推送 {len(blocks)} 条≥3分分析到 TG")
 
 
 def run_news_sync():
