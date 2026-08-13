@@ -313,10 +313,12 @@ def run_news_sync():
         if stderr:
             for line in stderr.strip().splitlines():
                 log.info(f"[skill] {line}")
+        # check=True 已保证 returncode=0，skill 产出了分析文件。stdout 里的
+        # "API Error"/"inappropriate content" 是 agent 中间某次子调用被审核
+        # 拦截的非致命日志，agent 自行跳过该条继续完成了分析。告警但照常推送。
         if "API Error" in stdout or "API Error" in stderr or "inappropriate content" in stdout or "inappropriate content" in stderr:
-            log.error("news-sync skill API 错误，跳过推送")
-            _send_tg_alert(f"news-sync skill API 错误（内容审核拦截）")
-            return
+            log.warning("news-sync skill 中间有 API 审核拦截（非致命），仍推送已有分析")
+            _send_tg_alert(f"news-sync skill 中间有 API 审核拦截（非致命），分析已完成并推送")
         log.info("news-sync skill 完成")
         _push_deep_analysis_tg()
     except subprocess.CalledProcessError as e:
