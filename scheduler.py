@@ -54,24 +54,19 @@ def pull_techmeme():
     merge_daily("techmeme", flat)
 
 
-TWITTER_BLOCKED_KEYWORDS = [
+BLOCKED_KEYWORDS = [
     "习劳民", "王毅的贵人", "Arunachal Pradesh",
+    "Epstein", "Cami Clark", "luxury porn", "soft core porn",
+    "Fauci", "Hasan Piker", "Trans-Marxist", "Birth Tourism",
 ]
 
 def pull_twitter():
     log.info("开始拉取 Twitter 关注时间线")
     import twitter_news
     items = twitter_news.fetch_timeline(count=100)
-    filtered = []
-    for it in items:
-        text = it.get("text", "")
-        if any(kw in text for kw in TWITTER_BLOCKED_KEYWORDS):
-            log.info(f"Twitter 过滤敏感内容: {text[:60]}")
-            continue
-        filtered.append(it)
-    twitter_news.SCAN_FILE.write_text(twitter_news.to_markdown(filtered), encoding="utf-8")
-    log.info(f"Twitter 完成，共 {len(filtered)} 条（过滤 {len(items) - len(filtered)} 条）→ {twitter_news.SCAN_FILE}")
-    merge_daily("twitter", filtered)
+    twitter_news.SCAN_FILE.write_text(twitter_news.to_markdown(items), encoding="utf-8")
+    log.info(f"Twitter 完成，共 {len(items)} 条 → {twitter_news.SCAN_FILE}")
+    merge_daily("twitter", items)
 
 
 def _parse_existing(path, source):
@@ -298,8 +293,38 @@ def _push_deep_analysis_tg():
     log.info(f"已推送 {len(blocks)} 条≥3分分析到 TG")
 
 
+def _filter_raw_for_llm():
+    """将 runs/news_raw/ 过滤敏感内容后复制到 runs/news_filtered/。
+    raw 保留完整数据，LLM 只读 filtered。"""
+    raw_dir = ROOT / "runs" / "news_raw"
+    filtered_dir = ROOT / "runs" / "news_filtered"
+    if not raw_dir.exists():
+        return
+    filtered_dir.mkdir(parents=True, exist_ok=True)
+    total_removed = 0
+    for path in sorted(raw_dir.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        kept = []
+        skip_next = False
+        for line in lines:
+            if skip_next:
+                skip_next = False
+                continue
+            if any(kw in line for kw in BLOCKED_KEYWORDS):
+                total_removed += 1
+                # 跳过该条 + 下一行（通常是 URL）
+                skip_next = True
+                continue
+            kept.append(line)
+        (filtered_dir / path.name).write_text("\n".join(kept) + "\n", encoding="utf-8")
+    if total_removed:
+        log.info(f"LLM 过滤: 从 raw 移除 {total_removed} 条敏感内容 → {filtered_dir}")
+
+
 def run_news_sync():
     """每12小时调 qwen-code CLI 跑 news-sync skill，完成后推送 TG。"""
+    _filter_raw_for_llm()
     cli = os.environ.get("QWEN_CLI", "node")
     cli_args = os.environ.get("QWEN_CLI_ARGS", "").split()
     model = os.environ.get("QWEN_MODEL", "deepseek-chat")

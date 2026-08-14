@@ -14,13 +14,13 @@ allowedTools:
 
 # 资讯同步与分析工作流
 
-输入是 `runs/news_raw/` 下的最新归档，输出是更新后的 `briefing.md`、深度分析存档、TG 推送。
+输入是 `runs/news_filtered/` 下的最新归档，输出是更新后的 `briefing.md`、深度分析存档、TG 推送。
 
 ## Artifact Paths
 
 - `runs/briefing.md` — 当前局势简报（跨 session 记忆），标题下第一行为 `> 上次更新：{YYYY-MM-DD HH:MM}`
 - `runs/causal_rules.md` — 因果方向规则库
-- `runs/news_raw/{date}_techmeme.md`、`runs/news_raw/{date}_twitter.md` — 原始资讯
+- `runs/news_filtered/{date}_techmeme.md`、`runs/news_filtered/{date}_twitter.md` — 原始资讯
 - `runs/news_deep/{date}_{hour}.md` — 本轮深度分析存档
 
 ## 通用约定
@@ -37,9 +37,9 @@ allowedTools:
 
 ## Phase 2: 去重与粗筛
 
-窗口 = briefing.md 的 `上次更新` 至当前时间；该字段为空则取当天。用 `run_shell_command` 执行 `find runs/news_raw -name '*_techmeme.md' -o -name '*_twitter.md'` 列出窗口内所有文件，`read_file` 并行读取。
+窗口 = briefing.md 的 `上次更新` 至当前时间；该字段为空则取当天。用 `run_shell_command` 执行 `find runs/news_filtered -name '*_techmeme.md' -o -name '*_twitter.md'` 列出窗口内所有文件，`read_file` 并行读取。
 
-用 `web_search` 补齐 news_raw 可能遗漏的当前市场焦点，补到的条目与 news_raw 统一分类、统一评分。
+用 `web_search` 补齐 news_filtered 可能遗漏的当前市场焦点，补到的条目与 news_filtered 统一分类、统一评分。
 
 ### 分类
 
