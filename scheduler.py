@@ -328,7 +328,10 @@ def run_news_sync():
     cli = os.environ.get("QWEN_CLI", "node")
     cli_args = os.environ.get("QWEN_CLI_ARGS", "").split()
     model = os.environ.get("QWEN_MODEL", "deepseek-chat")
+    proxy = os.environ.get("QWEN_PROXY", "")
     cmd = [cli] + cli_args + ["--prompt", "/news-sync", "--output-format", "stream-json", "-y", "--model", model]
+    if proxy:
+        cmd += ["--proxy", proxy]
     log.info(f"启动 news-sync skill: {' '.join(cmd)}")
     try:
         proc = subprocess.run(cmd, cwd=str(ROOT), timeout=600, check=True,
