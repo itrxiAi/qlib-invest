@@ -256,14 +256,14 @@ def _send_tg_alert(msg):
         log.error(f"TG 告警发送失败（告警内容: {msg[:80]}）: {e}")
 
 
-def _send_tg_message(text):
-    """发送 TG 消息。"""
+def _send_tg_message(text) -> bool:
+    """发送 TG 消息，返回是否成功。"""
     import requests
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
     if not token or not chat_id:
         log.warning("TG 配置缺失，跳过推送")
-        return
+        return False
     try:
         resp = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
@@ -273,8 +273,11 @@ def _send_tg_message(text):
         )
         if resp.status_code != 200:
             log.error(f"TG 推送失败: {resp.status_code} {resp.text[:200]}")
+            return False
+        return True
     except Exception as e:
         log.exception(f"TG 推送异常: {e}")
+        return False
 
 
 def _push_deep_analysis_tg():
@@ -294,9 +297,12 @@ def _push_deep_analysis_tg():
         return
     msg = f"📊 深度分析 — {files[0].stem}\n\n" + "\n\n".join(blocks)
     # TG 消息上限 4096 字符，分段发送
-    for i in range(0, len(msg), 4000):
-        _send_tg_message(msg[i:i+4000])
-    log.info(f"已推送 {len(blocks)} 条≥3分分析到 TG")
+    segments = (len(msg) + 3999) // 4000
+    failed = sum(1 for i in range(0, len(msg), 4000) if not _send_tg_message(msg[i:i+4000]))
+    if failed:
+        log.error(f"TG 推送: {failed}/{segments} 段失败，共 {len(blocks)} 条≥3分分析")
+    else:
+        log.info(f"已推送 {len(blocks)} 条≥3分分析到 TG")
 
 
 def _filter_raw_for_llm():
