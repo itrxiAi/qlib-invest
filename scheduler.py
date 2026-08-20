@@ -247,8 +247,8 @@ def _send_tg_alert(msg):
             json={"chat_id": chat_id, "text": f"⚠️ invest scheduler 异常\n\n{msg}"},
             timeout=10,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        log.error(f"TG 告警发送失败（告警内容: {msg[:80]}）: {e}")
 
 
 def _send_tg_message(text):
