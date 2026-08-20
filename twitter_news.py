@@ -35,6 +35,7 @@ RAW_DIR = ROOT / "runs" / "news_raw"
 TWITTER_AUTH_TOKEN = os.environ.get("TWITTER_AUTH_TOKEN", "")
 TWITTER_CT0 = os.environ.get("TWITTER_CT0", "")
 CST = timezone(timedelta(hours=8))
+PROXY = os.environ.get("QWEN_PROXY", "") or os.environ.get("HTTPS_PROXY", "")
 
 
 def _to_cst(ts_str: str) -> datetime:
@@ -68,7 +69,7 @@ def fetch_timeline(count: int = 100) -> list[dict]:
     from twikit import Client
     from twikit.errors import Unauthorized
 
-    client = Client("en-US")
+    client = Client("en-US", proxy=PROXY) if PROXY else Client("en-US")
     _login(client)
 
     try:

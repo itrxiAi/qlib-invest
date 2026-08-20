@@ -233,6 +233,10 @@ def pull_all():
 
 
 
+_TG_PROXY = os.environ.get("QWEN_PROXY", "") or os.environ.get("HTTPS_PROXY", "")
+_TG_PROXIES = {"http": _TG_PROXY, "https": _TG_PROXY} if _TG_PROXY else None
+
+
 def _send_tg_alert(msg):
     """发送 TG 告警通知。"""
     import os
@@ -246,6 +250,7 @@ def _send_tg_alert(msg):
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": chat_id, "text": f"⚠️ invest scheduler 异常\n\n{msg}"},
             timeout=10,
+            proxies=_TG_PROXIES,
         )
     except Exception as e:
         log.error(f"TG 告警发送失败（告警内容: {msg[:80]}）: {e}")
@@ -264,6 +269,7 @@ def _send_tg_message(text):
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": chat_id, "text": text},
             timeout=15,
+            proxies=_TG_PROXIES,
         )
         if resp.status_code != 200:
             log.error(f"TG 推送失败: {resp.status_code} {resp.text[:200]}")
