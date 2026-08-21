@@ -213,7 +213,7 @@ def merge_daily(source, new_items):
 
 
 def pull_all():
-    """Techmeme + Twitter 一起拉，增量归档。"""
+    """Techmeme + Twitter + 市场快照一起拉，增量归档。"""
     try:
         pull_techmeme()
     except Exception as e:
@@ -230,6 +230,12 @@ def pull_all():
             else:
                 log.exception(f"Twitter 拉取失败: {e}")
                 _send_tg_alert(f"Twitter 拉取失败 (3次重试后): {e}")
+    try:
+        import market_snapshot
+        path = market_snapshot.run()
+        log.info(f"市场快照完成 → {path}")
+    except Exception as e:
+        log.exception(f"市场快照拉取失败: {e}")
 
 
 
