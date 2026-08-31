@@ -10,3 +10,4 @@ twitter_scan.md
 patch_twikit.py
 scheduler.pid
 runs/news_filtered/
+.qwen/tmp/
