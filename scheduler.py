@@ -341,41 +341,27 @@ def _filter_raw_for_llm():
 
 
 def run_news_sync():
-    """每12小时调 qwen-code CLI 跑 news-sync skill，完成后推送 TG。"""
+    """每12小时跑深度分析编排脚本（粗筛 → 逐条分析 → 存档 → 更新 briefing → 推送 TG）。"""
     _filter_raw_for_llm()
-    cli = os.environ.get("QWEN_CLI", "node")
-    cli_args = os.environ.get("QWEN_CLI_ARGS", "").split()
-    model = os.environ.get("QWEN_MODEL", "deepseek-chat")
-    proxy = os.environ.get("QWEN_PROXY", "")
-    cmd = [cli] + cli_args + ["--prompt", "/news-sync", "--output-format", "stream-json", "-y", "--model", model]
-    if proxy:
-        cmd += ["--proxy", proxy]
-    log.info(f"启动 news-sync skill: {' '.join(cmd)}")
+    venv_python = str(ROOT / ".venv" / "bin" / "python")
+    cmd = [venv_python, "run_deep_analysis.py"]
+    log.info(f"启动深度分析编排: {' '.join(cmd)}")
     try:
-        proc = subprocess.run(cmd, cwd=str(ROOT), timeout=600, check=True,
+        proc = subprocess.run(cmd, cwd=str(ROOT), timeout=3600, check=True,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stderr = proc.stderr or ""
         stdout = proc.stdout or ""
-        if stderr:
-            for line in stderr.strip().splitlines():
-                log.info(f"[skill] {line}")
-        # check=True 已保证 returncode=0，skill 产出了分析文件。stdout 里的
-        # "API Error"/"inappropriate content" 是 agent 中间某次子调用被审核
-        # 拦截的非致命日志，agent 自行跳过该条继续完成了分析。告警但照常推送。
-        if "API Error" in stdout or "API Error" in stderr or "inappropriate content" in stdout or "inappropriate content" in stderr:
-            log.warning("news-sync skill 中间有 API 审核拦截（非致命），仍推送已有分析")
-            _send_tg_alert(f"news-sync skill 中间有 API 审核拦截（非致命），分析已完成并推送")
-        log.info("news-sync skill 完成")
-        _push_deep_analysis_tg()
+        for line in stdout.strip().splitlines()[-20:]:
+            log.info(f"[deep_analysis] {line}")
+        log.info("深度分析编排完成")
     except subprocess.CalledProcessError as e:
         stderr = e.stderr or ""
-        log.error(f"news-sync skill 失败: returncode={e.returncode}")
-        for line in stderr.strip().splitlines():
-            log.error(f"[skill stderr] {line}")
-        _send_tg_alert(f"news-sync skill 失败 (code={e.returncode}):\n{stderr[:800]}")
+        log.error(f"深度分析编排失败: returncode={e.returncode}")
+        for line in stderr.strip().splitlines()[-10:]:
+            log.error(f"[deep_analysis stderr] {line}")
+        _send_tg_alert(f"深度分析编排失败 (code={e.returncode}):\n{stderr[:800]}")
     except Exception as e:
-        log.exception(f"news-sync skill 失败: {e}")
-        _send_tg_alert(f"news-sync skill 失败: {e}")
+        log.exception(f"深度分析编排失败: {e}")
+        _send_tg_alert(f"深度分析编排失败: {e}")
 
 
 def main():
