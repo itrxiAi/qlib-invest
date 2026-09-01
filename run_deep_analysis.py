@@ -250,12 +250,13 @@ def step5_push_tg(archive_path):
 
     msg = f"📊 深度分析 — {archive_path.stem}\n\n" + "\n\n".join(blocks)
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    proxies = {"https": PROXY, "http": PROXY} if PROXY else None
     failed = 0
     for i in range(0, len(msg), 4000):
         chunk = msg[i:i+4000]
         for attempt in range(3):
             try:
-                r = requests.post(url, json={"chat_id": TG_CHAT, "text": chunk}, timeout=10)
+                r = requests.post(url, json={"chat_id": TG_CHAT, "text": chunk}, timeout=10, proxies=proxies)
                 if r.ok:
                     break
                 failed += 1
