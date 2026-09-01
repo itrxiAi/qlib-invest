@@ -252,10 +252,17 @@ def step5_push_tg(archive_path):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     failed = 0
     for i in range(0, len(msg), 4000):
-        r = requests.post(url, json={"chat_id": TG_CHAT, "text": msg[i:i+4000]}, timeout=10)
-        if not r.ok:
-            failed += 1
-            log.error(f"TG 推送失败: {r.status_code} {r.text[:200]}")
+        chunk = msg[i:i+4000]
+        for attempt in range(3):
+            try:
+                r = requests.post(url, json={"chat_id": TG_CHAT, "text": chunk}, timeout=10)
+                if r.ok:
+                    break
+                failed += 1
+                log.error(f"TG 推送失败 (attempt {attempt+1}): {r.status_code} {r.text[:200]}")
+            except requests.exceptions.RequestException as e:
+                failed += 1
+                log.error(f"TG 推送异常 (attempt {attempt+1}): {e}")
     if failed:
         log.error(f"TG 推送: {failed} 段失败")
     else:
