@@ -7,7 +7,6 @@ runs/
 .DS_Store
 news_scan.md
 twitter_scan.md
-patch_twikit.py
 scheduler.pid
 runs/news_filtered/
 .qwen/tmp/

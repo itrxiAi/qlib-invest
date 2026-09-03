@@ -45,15 +45,25 @@ if new_t != t:
 else:
     print("already patched, skip")
 
-# ─── Patch client.py: skip non-tweet entries without 'core' key ───
+# ─── Patch client.py: skip non-tweet entries (empty result + missing core) ───
 client_p = pathlib.Path(__file__).parent / ".venv/lib/python3.10/site-packages/twikit/client.py"
 if client_p.exists():
     t = client_p.read_text()
-    old = "            tweet_info = find_dict(item, 'result')[0]\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
-    new = "            tweet_info = find_dict(item, 'result')[0]\n            if 'core' not in tweet_info:\n                continue\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
-    if old in t and "if 'core' not in tweet_info:" not in t:
-        t = t.replace(old, new)
-        client_p.write_text(t)
-        print(f"patched {client_p}")
+    target = "            _results = find_dict(item, 'result')\n            if not _results:\n                continue\n            tweet_info = _results[0]\n            if 'core' not in tweet_info:\n                continue\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
+    if "if not _results:" in t:
+        print("client.py already patched with empty check, skip")
     else:
-        print("client.py already patched or pattern not found, skip")
+        # Original: no checks before indexing
+        old1 = "            tweet_info = find_dict(item, 'result')[0]\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
+        # Previous patch: core check only (still crashes on empty find_dict)
+        old1b = "            tweet_info = find_dict(item, 'result')[0]\n            if 'core' not in tweet_info:\n                continue\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
+        if old1 in t:
+            t = t.replace(old1, target)
+            client_p.write_text(t)
+            print(f"patched {client_p} (original → empty+core check)")
+        elif old1b in t:
+            t = t.replace(old1b, target)
+            client_p.write_text(t)
+            print(f"patched {client_p} (core-only → empty+core check)")
+        else:
+            print("client.py pattern not found, skip")
