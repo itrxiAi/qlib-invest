@@ -3,6 +3,7 @@ cookies.json
 __pycache__/
 *.pyc
 runs/
+runs.bak-*/
 .venv/
 .DS_Store
 news_scan.md

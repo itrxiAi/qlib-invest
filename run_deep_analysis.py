@@ -148,14 +148,17 @@ def step2_analyze(triage_path):
         analyze_file = TMP_DIR / f"analyze_{item_id}.md"
         if analyze_file.exists():
             text = analyze_file.read_text(encoding="utf-8").strip()
-            results.append(text)
+            # 星级由脚本按 triage score 统一生成；剥掉模型可能残留的星标
+            text = re.sub(r"^[★☆\s]+", "", text)
+            results.append(f"{'★' * min(score, 5)} {text}")
         else:
             # 从 stream-json 输出提取最后的 result
             for line in reversed(output.strip().splitlines()):
                 try:
                     obj = json.loads(line)
                     if obj.get("type") == "result":
-                        results.append(obj.get("result", ""))
+                        text = re.sub(r"^[★☆\s]+", "", obj.get("result", "").strip())
+                        results.append(f"{'★' * min(score, 5)} {text}")
                         break
                 except json.JSONDecodeError:
                     continue
