@@ -20,14 +20,16 @@ triggers:
 
 | 参数 | 说明 |
 |------|------|
-| 项目路径 | 项目根目录的绝对路径（含 `cli.py` 和 `runs/` 的目录，即本插件安装位置），所有 cli.py 命令与 runs/ 路径都以此为 cwd |
+| 项目路径 | 项目根目录的绝对路径（含 `invest` 启动脚本的目录，即本插件安装位置），所有 `./invest` 命令与 runs/ 路径都以此为 cwd |
+
+`./invest` 是自举脚本：首次运行自动建 `.venv` 并装依赖，之后等价于 `.venv/bin/python cli.py`。
 
 ## 步骤
 
 ### 1. 过滤原始资讯
 
 ```bash
-.venv/bin/python cli.py filter
+./invest filter
 ```
 
 ### 2. 粗筛
@@ -50,7 +52,7 @@ triggers:
 ### 4. 存档
 
 ```bash
-.venv/bin/python cli.py archive
+./invest archive
 ```
 
 拼接 analyze_*.md + triage 写入 `runs/news_deep/{date}_{hour}.md`，自动清理 tmp 和 briefing 过期行。命令输出行即存档路径。
@@ -62,7 +64,7 @@ triggers:
 ### 6. 推送
 
 ```bash
-.venv/bin/python cli.py push
+./invest push
 ```
 
 把最新存档中 ≥3★ 条目推 Telegram；未配置 TG 则脚本自动跳过。

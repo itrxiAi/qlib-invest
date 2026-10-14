@@ -6,9 +6,15 @@ PyPI 原版直接索引 legacy 字段，部分用户 profile 缺字段会 KeyErr
 import pathlib
 import re
 
-p = pathlib.Path(__file__).parent / ".venv/lib/python3.10/site-packages/twikit/user.py"
-if not p.exists():
+try:
+    import twikit
+except ImportError:
     print("twikit not installed, skip")
+    raise SystemExit(0)
+
+p = pathlib.Path(twikit.__file__).parent / "user.py"
+if not p.exists():
+    print("twikit user.py not found, skip")
     raise SystemExit(0)
 
 t = p.read_text()
@@ -46,7 +52,7 @@ else:
     print("already patched, skip")
 
 # ─── Patch client.py: skip non-tweet entries (empty result + missing core) ───
-client_p = pathlib.Path(__file__).parent / ".venv/lib/python3.10/site-packages/twikit/client.py"
+client_p = pathlib.Path(twikit.__file__).parent / "client.py"
 if client_p.exists():
     t = client_p.read_text()
     target = "            _results = find_dict(item, 'result')\n            if not _results:\n                continue\n            tweet_info = _results[0]\n            if 'core' not in tweet_info:\n                continue\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"

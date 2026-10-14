@@ -13,12 +13,14 @@ triggers:
 
 ## 执行步骤
 
-先 `cd` 到项目根目录（含 `cli.py` 和 `runs/` 的目录，即本插件安装位置），然后执行：
+先 `cd` 到项目根目录（含 `invest` 启动脚本的目录，即本插件安装位置），然后执行：
 
 ```bash
-.venv/bin/python cli.py pull
-.venv/bin/python cli.py filter
+./invest pull
+./invest filter
 ```
+
+`./invest` 是自举脚本：首次运行自动建 `.venv` 并装 `requirements.txt`，之后透传给 `cli.py`。
 
 - `pull`：拉 Techmeme/Finnhub 新闻 + Twitter 关注时间线 + 市场快照（BTC/ETH/SOL/XAU、美债、VIX、DXY），按日增量归档到 `runs/news_raw/{date}_{source}.md`，链接级去重。
 - `filter`：把 `news_raw/` 复制到 `runs/news_filtered/`，按敏感词表剔除敏感条目（LLM 只读 filtered）。

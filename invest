@@ -1,0 +1,12 @@
+#!/bin/bash
+# qlib-invest 自举入口：首次运行自动建 .venv 并安装依赖，然后透传给 cli.py
+cd "$(dirname "$0")"
+
+if [ ! -x .venv/bin/python ]; then
+  echo "[invest] 首次运行：创建 .venv 并安装依赖..." >&2
+  python3 -m venv .venv || { echo "[invest] 需要 Python 3.10+，请先安装" >&2; exit 1; }
+  .venv/bin/pip install -q -r requirements.txt || { echo "[invest] 依赖安装失败" >&2; exit 1; }
+  .venv/bin/python patch_twikit.py || { echo "[invest] twikit patch 失败" >&2; exit 1; }
+fi
+
+exec .venv/bin/python cli.py "$@"

@@ -4,7 +4,7 @@
 
 ## 核心约定
 
-- 确定性操作全部走 `cli.py`（`.venv/bin/python cli.py <cmd>`），不直接调内部脚本
+- 确定性操作全部走 `./invest <cmd>`（自举脚本：首次运行自动建 `.venv`、装 requirements、patch twikit，然后透传给 `cli.py`），不直接调内部脚本
 - LLM 流程全部是 `skills/` 下的 SKILL.md，由 agent 按流程驱动
 - briefing 格式契约定义在 `skills/invest-briefing/SKILL.md`，是唯一权威来源
 - 旧编排脚本 `run_deep_analysis.py` / `scheduler.py`（含定时器）已被插件流程取代，保留仅作数据拉取与 TG 推送的实现被 `cli.py` 复用
