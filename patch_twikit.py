@@ -1,7 +1,12 @@
-"""Patch twikit 1.4.0 KeyError bugs in user.py.
+"""Patch twikit 1.4.0 KeyError bugs.
 
-PyPI 原版直接索引 legacy 字段，部分用户 profile 缺字段会 KeyError。
-把所有 legacy['xxx'] 改为 .get() 防护。
+PyPI 原版多处裸索引 legacy/entities/card 字段，特定数据形状会 KeyError：
+- user.py: User() 构造时 legacy['xxx'] / legacy['entities']['description']['urls']
+- tweet.py: data['card']['legacy']['name']（poll 卡片缺字段）
+- client.py: get_latest_timeline 循环里 find_dict()[0] / tweet_info['core'] 直连
+
+本脚本把已知崩溃点全部改为防御性写法；幂等，可重复执行。
+由 ./invest 在首次安装依赖后自动调用。
 """
 import pathlib
 import re
@@ -12,24 +17,40 @@ except ImportError:
     print("twikit not installed, skip")
     raise SystemExit(0)
 
-p = pathlib.Path(twikit.__file__).parent / "user.py"
-if not p.exists():
-    print("twikit user.py not found, skip")
-    raise SystemExit(0)
+PKG = pathlib.Path(twikit.__file__).parent
 
+
+def replace_once(t, old, new):
+    """old → new；new 已存在则幂等跳过。返回 (text, changed, found)。"""
+    if new in t:
+        return t, False, True
+    if old in t:
+        return t.replace(old, new, 1), True, True
+    return t, False, False
+
+
+# ─── user.py ────────────────────────────────────────────────────────────────
+
+p = PKG / "user.py"
 t = p.read_text()
 
-# Replace legacy['key'] → legacy.get('key', default)
-# default: '' for str, 0 for int, False for bool, [] for list, {} for dict
+# 特殊行必须先于通用正则：legacy['entities']['description']['urls'] 是链式索引
+t, changed1, _ = replace_once(
+    t,
+    "legacy['entities']['description']['urls']",
+    "legacy.get('entities', {}).get('description', {}).get('urls', [])",
+)
+
+
+# 通用规则：legacy['key'] → legacy.get('key', default)
+# default: '' for str, 0 for int, False for bool, [] for list
 def replacer(m):
     full = m.group(0)
     key = m.group(1)
-    # already .get() — skip
     if '.get(' in full:
         return full
-    # guess default by type hint
-    line = m.string[m.start():m.start()+120]
-    if ': str' in line or ': list' in line and 'str' in line:
+    line = m.string[m.start():m.start() + 120]
+    if ': str' in line:
         default = "''"
     elif ': bool' in line:
         default = "False"
@@ -41,35 +62,90 @@ def replacer(m):
         default = "None"
     return f"legacy.get('{key}', {default})"
 
-# Match legacy['xxx'] but not legacy.get(...)
-pattern = r"legacy\['([^']+)'\]"
-new_t = re.sub(pattern, replacer, t)
 
+new_t = re.sub(r"legacy\['([^']+)'\]", replacer, t)
 if new_t != t:
-    p.write_text(new_t)
+    t = new_t
+    changed1 = True
+
+if changed1:
+    p.write_text(t)
     print(f"patched {p}")
 else:
-    print("already patched, skip")
+    print("user.py already patched, skip")
 
-# ─── Patch client.py: skip non-tweet entries (empty result + missing core) ───
-client_p = pathlib.Path(twikit.__file__).parent / "client.py"
-if client_p.exists():
-    t = client_p.read_text()
-    target = "            _results = find_dict(item, 'result')\n            if not _results:\n                continue\n            tweet_info = _results[0]\n            if 'core' not in tweet_info:\n                continue\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
-    if "if not _results:" in t:
-        print("client.py already patched with empty check, skip")
-    else:
-        # Original: no checks before indexing
-        old1 = "            tweet_info = find_dict(item, 'result')[0]\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
-        # Previous patch: core check only (still crashes on empty find_dict)
-        old1b = "            tweet_info = find_dict(item, 'result')[0]\n            if 'core' not in tweet_info:\n                continue\n            if tweet_info['__typename'] == 'TweetWithVisibilityResults':"
-        if old1 in t:
-            t = t.replace(old1, target)
-            client_p.write_text(t)
-            print(f"patched {client_p} (original → empty+core check)")
-        elif old1b in t:
-            t = t.replace(old1b, target)
-            client_p.write_text(t)
-            print(f"patched {client_p} (core-only → empty+core check)")
-        else:
-            print("client.py pattern not found, skip")
+
+# ─── tweet.py：poll 卡片缺 legacy/name ──────────────────────────────────────
+
+p = PKG / "tweet.py"
+t = p.read_text()
+t, changed, found = replace_once(
+    t,
+    "data['card']['legacy']['name'].startswith('poll')",
+    "data['card'].get('legacy', {}).get('name', '').startswith('poll')",
+)
+if changed:
+    p.write_text(t)
+    print(f"patched {p}")
+elif found:
+    print("tweet.py already patched, skip")
+else:
+    print("tweet.py pattern not found, skip")
+
+
+# ─── client.py：timeline 循环整段 try/except ────────────────────────────────
+# 历史上有两种旧形态（原版直连 / 只加空结果检查），统一收敛到 try/except 兜底：
+# 单条推文解析失败跳过，不炸掉整条时间线。
+
+p = PKG / "client.py"
+t = p.read_text()
+
+target = """            try:
+                tweet_info = find_dict(item, 'result')[0]
+                if tweet_info['__typename'] == 'TweetWithVisibilityResults':
+                    tweet_info = tweet_info['tweet']
+                user_info = tweet_info['core']['user_results']['result']
+            except (IndexError, KeyError, TypeError):
+                continue
+            results.append(Tweet(self, tweet_info, user_info))"""
+
+old_variants = [
+    # 原版：无任何防护
+    """            tweet_info = find_dict(item, 'result')[0]
+            if tweet_info['__typename'] == 'TweetWithVisibilityResults':
+                tweet_info = tweet_info['tweet']
+            user_info = tweet_info['core']['user_results']['result']
+            results.append(Tweet(self, tweet_info, user_info))""",
+    # 旧补丁：空结果 + core 检查（仍会在 Tweet() 构造时炸）
+    """            _results = find_dict(item, 'result')
+            if not _results:
+                continue
+            tweet_info = _results[0]
+            if 'core' not in tweet_info:
+                continue
+            if tweet_info['__typename'] == 'TweetWithVisibilityResults':
+                tweet_info = tweet_info['tweet']
+            user_info = tweet_info['core']['user_results']['result']
+            results.append(Tweet(self, tweet_info, user_info))""",
+    # 旧补丁：只有 core 检查
+    """            tweet_info = find_dict(item, 'result')[0]
+            if 'core' not in tweet_info:
+                continue
+            if tweet_info['__typename'] == 'TweetWithVisibilityResults':
+                tweet_info = tweet_info['tweet']
+            user_info = tweet_info['core']['user_results']['result']
+            results.append(Tweet(self, tweet_info, user_info))""",
+]
+
+if "except (IndexError, KeyError, TypeError):" in t:
+    print("client.py already patched, skip")
+else:
+    changed = False
+    for old in old_variants:
+        t, changed, _ = replace_once(t, old, target)
+        if changed:
+            p.write_text(t)
+            print(f"patched {p}")
+            break
+    if not changed:
+        print("client.py pattern not found, skip")
