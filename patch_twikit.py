@@ -21,12 +21,13 @@ PKG = pathlib.Path(twikit.__file__).parent
 
 
 def replace_once(t, old, new):
-    """old → new；new 已存在则幂等跳过。返回 (text, changed, found)。"""
-    if new in t:
-        return t, False, True
-    if old in t:
-        return t.replace(old, new, 1), True, True
-    return t, False, False
+    """old → new 全量替换（同一代码块在文件里可能出现多次，如多个 timeline 方法）。
+    new 已存在且无 old 残留则幂等跳过。返回 (text, changed, found)。"""
+    has_old = old in t
+    has_new = new in t
+    if has_old:
+        return t.replace(old, new), True, True
+    return t, False, has_old or has_new
 
 
 # ─── user.py ────────────────────────────────────────────────────────────────
@@ -137,15 +138,14 @@ old_variants = [
             results.append(Tweet(self, tweet_info, user_info))""",
 ]
 
-if "except (IndexError, KeyError, TypeError):" in t:
+changed = False
+for old in old_variants:
+    t, c, _ = replace_once(t, old, target)
+    changed = changed or c
+if changed:
+    p.write_text(t)
+    print(f"patched {p}")
+elif "except (IndexError, KeyError, TypeError):" in t:
     print("client.py already patched, skip")
 else:
-    changed = False
-    for old in old_variants:
-        t, changed, _ = replace_once(t, old, target)
-        if changed:
-            p.write_text(t)
-            print(f"patched {p}")
-            break
-    if not changed:
-        print("client.py pattern not found, skip")
+    print("client.py pattern not found, skip")
