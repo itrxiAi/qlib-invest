@@ -106,11 +106,20 @@ target = """            try:
                 if tweet_info['__typename'] == 'TweetWithVisibilityResults':
                     tweet_info = tweet_info['tweet']
                 user_info = tweet_info['core']['user_results']['result']
+                results.append(Tweet(self, tweet_info, user_info))
             except (IndexError, KeyError, TypeError):
-                continue
-            results.append(Tweet(self, tweet_info, user_info))"""
+                continue"""
 
 old_variants = [
+    # 上一版补丁：Tweet() 构造在 try 外，构造期 KeyError 仍会炸掉整条时间线
+    """            try:
+                tweet_info = find_dict(item, 'result')[0]
+                if tweet_info['__typename'] == 'TweetWithVisibilityResults':
+                    tweet_info = tweet_info['tweet']
+                user_info = tweet_info['core']['user_results']['result']
+            except (IndexError, KeyError, TypeError):
+                continue
+            results.append(Tweet(self, tweet_info, user_info))""",
     # 原版：无任何防护
     """            tweet_info = find_dict(item, 'result')[0]
             if tweet_info['__typename'] == 'TweetWithVisibilityResults':
