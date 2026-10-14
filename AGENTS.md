@@ -12,6 +12,7 @@
 
 ## 环境
 
+- 系统需预装 `python3.10`（`./invest` 首次运行会用它建 `.venv`；缺失时报错退出）
 - `.env`：TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID（可选）、QWEN_PROXY、DEEP_MIN_SCORE（默认 3）、BRIEFING_STALE_DAYS（默认 3）、SYNCER_API_URL/KEY
 - Twitter cookie：`TWITTER_AUTH_TOKEN` / `TWITTER_CT0`
 
