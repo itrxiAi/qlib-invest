@@ -25,7 +25,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).parent
+_root = os.environ.get("INVEST_DATA_DIR")
+if not _root:
+    raise SystemExit("缺少 INVEST_DATA_DIR 环境变量。用法：./invest --data <数据目录> <cmd>")
+ROOT = Path(_root).expanduser().resolve()
 load_dotenv(ROOT / ".env")
 
 COOKIES_FILE = ROOT / "cookies.json"

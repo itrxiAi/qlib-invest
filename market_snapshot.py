@@ -14,7 +14,10 @@ from pathlib import Path
 
 import requests
 
-ROOT = Path(__file__).parent
+_root = os.environ.get("INVEST_DATA_DIR")
+if not _root:
+    raise SystemExit("缺少 INVEST_DATA_DIR 环境变量。用法：./invest --data <数据目录> <cmd>")
+ROOT = Path(_root).expanduser().resolve()
 RAW_DIR = ROOT / "runs" / "news_raw"
 
 API_URL = os.getenv("SYNCER_API_URL", "http://100.125.221.59:8000")

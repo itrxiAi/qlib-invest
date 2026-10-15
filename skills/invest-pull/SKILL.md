@@ -15,20 +15,20 @@ triggers:
 
 | 参数 | 说明 |
 |------|------|
-| 项目路径 | **必填**。项目根目录的绝对路径（含 `invest` 启动脚本的目录），命令以此为 cwd |
+| 数据目录 | **必填**。runs/、`.env`、`cookies.json` 所在目录的绝对路径，与插件代码目录分离（插件升级不丢数据） |
 
-**未提供项目路径时必须先向用户确认，不要自行猜测或使用当前工作目录。**
+**未提供数据目录时必须先向用户确认，不要自行猜测或使用当前工作目录。**
 
 ## 执行步骤
 
-`cd` 到项目路径，然后执行：
+插件目录 = 本 SKILL.md 的上两级目录。无需 cd，直接以绝对路径调用：
 
 ```bash
-./invest pull
-./invest filter
+<插件目录>/invest --data <数据目录> pull
+<插件目录>/invest --data <数据目录> filter
 ```
 
-`./invest` 是自举脚本：首次运行自动建 `.venv` 并装 `requirements.txt`，之后透传给 `cli.py`。
+`invest` 是自举脚本：首次运行自动在插件目录建 `.venv`、装 `requirements.txt`、patch twikit，之后透传给 `cli.py`。
 
 - `pull`：拉 Techmeme/Finnhub 新闻 + Twitter 关注时间线 + 市场快照（BTC/ETH/SOL/XAU、美债、VIX、DXY），按日增量归档到 `runs/news_raw/{date}_{source}.md`，链接级去重。
 - `filter`：把 `news_raw/` 复制到 `runs/news_filtered/`，按敏感词表剔除敏感条目（LLM 只读 filtered）。

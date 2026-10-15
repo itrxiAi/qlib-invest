@@ -16,7 +16,7 @@ triggers:
 
 输入是 `runs/news_filtered/` 下窗口内的归档，输出是 `runs/tmp/triage_{date}_{hour}.json`。
 
-以下所有路径相对项目根目录（含 `cli.py` 和 `runs/` 的目录）。
+以下所有路径相对数据目录（含 `runs/` 的目录），数据目录由调用方传入，未知时先向用户确认。
 
 ## Artifact Paths
 

@@ -20,18 +20,18 @@ triggers:
 
 | 参数 | 说明 |
 |------|------|
-| 项目路径 | **必填**。项目根目录的绝对路径（含 `invest` 启动脚本的目录），所有 `./invest` 命令与 runs/ 路径都以此为 cwd |
+| 数据目录 | **必填**。runs/、`.env`、`cookies.json` 所在目录的绝对路径，与插件代码目录分离（插件升级不丢数据） |
 
-**未提供项目路径时必须先向用户确认，不要自行猜测或使用当前工作目录。**
+**未提供数据目录时必须先向用户确认，不要自行猜测或使用当前工作目录。**
 
-`./invest` 是自举脚本：首次运行自动建 `.venv` 并装依赖，之后等价于 `.venv/bin/python cli.py`。
+插件目录 = 本 SKILL.md 的上两级目录。`invest` 是自举脚本：首次运行自动在插件目录建 `.venv`、装依赖、patch twikit，之后透传给 `cli.py`。所有命令形如 `<插件目录>/invest --data <数据目录> <cmd>`，无需 cd。
 
 ## 步骤
 
 ### 1. 过滤原始资讯
 
 ```bash
-./invest filter
+<插件目录>/invest --data <数据目录> filter
 ```
 
 ### 2. 粗筛
@@ -54,7 +54,7 @@ triggers:
 ### 4. 存档
 
 ```bash
-./invest archive
+<插件目录>/invest --data <数据目录> archive
 ```
 
 拼接 analyze_*.md + triage 写入 `runs/news_deep/{date}_{hour}.md`，自动清理 tmp 和 briefing 过期行。命令输出行即存档路径。
@@ -66,7 +66,7 @@ triggers:
 ### 6. 推送
 
 ```bash
-./invest push
+<插件目录>/invest --data <数据目录> push
 ```
 
 把最新存档中 ≥3★ 条目推 Telegram；未配置 TG 则脚本自动跳过。

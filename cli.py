@@ -21,7 +21,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).parent
+# 数据根目录：INVEST_DATA_DIR 必填（数据与代码分离，插件升级不丢数据）。
+# 用法：./invest --data <数据目录> <cmd>
+_root = os.environ.get("INVEST_DATA_DIR")
+if not _root:
+    sys.exit("缺少 INVEST_DATA_DIR 环境变量。用法：./invest --data <数据目录> <cmd>")
+ROOT = Path(_root).expanduser().resolve()
+os.environ["INVEST_DATA_DIR"] = str(ROOT)
 load_dotenv(ROOT / ".env")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", stream=sys.stdout)

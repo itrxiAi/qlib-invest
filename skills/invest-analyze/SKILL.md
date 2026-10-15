@@ -13,7 +13,7 @@ triggers:
 
 输入是一条资讯事件（JSON），输出是该条的深度分析（Markdown）。
 
-输出文件路径 `runs/tmp/analyze_{id}.md` 相对项目根目录（含 `cli.py` 和 `runs/` 的目录）。
+输出文件路径 `<数据目录>/runs/tmp/analyze_{id}.md`，数据目录由调用方传入，未知时先向用户确认。
 
 ## 输入
 

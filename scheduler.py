@@ -16,7 +16,11 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent / ".env")
+_root = os.environ.get("INVEST_DATA_DIR")
+if not _root:
+    sys.exit("缺少 INVEST_DATA_DIR 环境变量。用法：./invest --data <数据目录> <cmd>")
+ROOT = Path(_root).expanduser().resolve()
+load_dotenv(ROOT / ".env")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,7 +29,6 @@ logging.basicConfig(
 )
 log = logging.getLogger("scheduler")
 
-ROOT = Path(__file__).parent
 RAW_DIR = ROOT / "runs" / "news_raw"
 CST = timezone(timedelta(hours=8))
 

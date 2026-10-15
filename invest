@@ -2,6 +2,15 @@
 # qlib-invest 自举入口：首次运行自动建 .venv 并安装依赖，然后透传给 cli.py
 cd "$(dirname "$0")"
 
+# 数据目录必填（runs/、.env、cookies.json 所在），与插件代码目录分离，升级不丢数据
+if [ "$1" != "--data" ] || [ -z "$2" ]; then
+  echo "[invest] 用法: ./invest --data <数据目录> <cmd>" >&2
+  exit 1
+fi
+mkdir -p "$2"
+export INVEST_DATA_DIR="$(cd "$2" && pwd)"
+shift 2
+
 if [ ! -x .venv/bin/python ]; then
   echo "[invest] 首次运行：创建 .venv 并安装依赖..." >&2
   command -v python3.10 >/dev/null || { echo "[invest] 需要 Python 3.10，请先安装（如 brew install python@3.10）" >&2; exit 1; }
