@@ -1,6 +1,6 @@
 {
   "name": "qlib-invest",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "投研资讯管线插件：拉取资讯 → 粗筛 → 逐条深度分析 → 简报维护 → TG 推送",
   "author": {
     "name": "skywalker"
